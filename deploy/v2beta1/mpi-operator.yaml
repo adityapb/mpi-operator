@@ -257,6 +257,9 @@ spec:
     storage: true
     subresources:
       status: {}
+      scale:
+        specReplicasPath: .spec.mpiReplicaSpecs.Worker.replicas
+        statusReplicasPath: .status.replicas
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -480,6 +483,6 @@ spec:
         - -alsologtostderr
         - --lock-namespace
         - mpi-operator
-        image: mpioperator/mpi-operator:latest
+        image: adityapb/mpi-operator:latest
         name: mpi-operator
       serviceAccountName: mpi-operator
