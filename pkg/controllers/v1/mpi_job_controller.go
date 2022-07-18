@@ -1129,10 +1129,10 @@ shift
 	}
 	var buffer bytes.Buffer
 	if isGPULauncher {
-		buffer.WriteString(fmt.Sprintf("%s%s slots=%d\n", mpiJob.Name, launcherSuffix, slots))
+		buffer.WriteString(fmt.Sprintf("host %s%s ++cpus %d\n", mpiJob.Name, launcherSuffix, slots))
 	}
 	for i := 0; i < int(workerReplicas); i++ {
-		buffer.WriteString(fmt.Sprintf("%s%s-%d slots=%d\n", mpiJob.Name, workerSuffix, i, slots))
+		buffer.WriteString(fmt.Sprintf("host %s%s ++cpus %d\n", mpiJob.Name, workerSuffix, i, slots))
 	}
 
 	return &corev1.ConfigMap{

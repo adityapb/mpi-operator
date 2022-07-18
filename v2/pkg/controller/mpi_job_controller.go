@@ -1106,8 +1106,12 @@ func (c *MPIJobController) doUpdateJobStatus(mpiJob *kubeflow.MPIJob) error {
 func newConfigMap(mpiJob *kubeflow.MPIJob, workerReplicas int32) *corev1.ConfigMap {
 	var buffer bytes.Buffer
 	workersService := mpiJob.Name + workerSuffix
+    slots := 1
+	if mpiJob.Spec.SlotsPerWorker != nil {
+		slots = int(*mpiJob.Spec.SlotsPerWorker)
+	}
 	for i := 0; i < int(workerReplicas); i++ {
-		buffer.WriteString(fmt.Sprintf("%s%s-%d.%s.%s.svc\n", mpiJob.Name, workerSuffix, i, workersService, mpiJob.Namespace))
+		buffer.WriteString(fmt.Sprintf("host %s%s-%d.%s ++cpus %d\n", mpiJob.Name, workerSuffix, i, workersService, slots))
 	}
 
 	return &corev1.ConfigMap{
