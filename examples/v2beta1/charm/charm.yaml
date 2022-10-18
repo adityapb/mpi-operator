@@ -14,36 +14,41 @@ spec:
       template:
         spec:
           containers:
-          - image: kchndrs2/kubeflow-mpi:charmnet_vim
+          - image: adityapb/charm-netlrts:latest
             name: mpi-launcher
             securityContext:
               runAsUser: 1000
             command:
-            - cd /app/charm_net/netlrts-linux-x86_64-smp/examples/charm++/shrink_expand/jacobi2d-iter && make && ./charmrun
+            - /app/charmrun
             args:
             - +p2
-            - jacobi2d
-            - 200
-            - 20
+            - /app/jacobi2d
+            - "4000"
+            - "200"
             - +balancer
             - GreedyLB
             - +LBDebug
-            - 3
+            - "3"
             - ++nodelist
-            - ./etc/mpi/hostfile
+            - /etc/mpi/hostfile
             - ++server
             - ++server-port
-            - 1234
+            - "1234"
             resources:
               limits:
                 cpu: 1
                 memory: 1Gi
     Worker:
-      replicas: 2
+      replicas: 4
       template:
         spec:
+          volumes:
+          - name: data
+            hostPath:
+              path: /home/bhosale/mount
+              type: DirectoryOrCreate
           containers:
-          - image: kchndrs2/kubeflow-mpi:charmnet_vim
+          - image: adityapb/charm-netlrts:latest
             name: mpi-worker
             securityContext:
               runAsUser: 1000
@@ -53,7 +58,14 @@ spec:
             - -De
             - -f
             - /home/mpiuser/.sshd_config
+            volumeMounts:
+              - mountPath: /home/bhosale/mount
+                name: data
             resources:
               limits:
                 cpu: 1
-                memory: 1Gi
+                memory: 4Gi
+        securityContext:
+            fsGroup: 1001
+            runAsUser: 1001
+            runAsGroup: 1001
