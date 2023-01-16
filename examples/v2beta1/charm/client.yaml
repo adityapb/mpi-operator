@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: charm-client
+spec:
+  containers:
+  - name: charm-client
+    image: adityapb/charm-netlrts:client
+    ports:
+    - containerPort: 80
