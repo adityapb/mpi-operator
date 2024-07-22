@@ -31,8 +31,11 @@ func setDefaultsTypeLauncher(spec *ReplicaSpec) {
 	if spec.RestartPolicy == "" {
 		spec.RestartPolicy = DefaultLauncherRestartPolicy
 	}
-	if spec.Replicas == nil {
-		spec.Replicas = ptr.To[int32](1)
+	if spec.MaxReplicas == nil {
+		spec.MaxReplicas = ptr.To[int32](1)
+	}
+	if spec.MinReplicas == nil {
+		spec.MinReplicas = ptr.To[int32](1)
 	}
 }
 
@@ -44,8 +47,11 @@ func setDefaultsTypeWorker(spec *ReplicaSpec) {
 	if spec.RestartPolicy == "" {
 		spec.RestartPolicy = DefaultRestartPolicy
 	}
-	if spec.Replicas == nil {
-		spec.Replicas = ptr.To[int32](0)
+	if spec.MaxReplicas == nil {
+		spec.MaxReplicas = ptr.To[int32](0)
+	}
+	if spec.MinReplicas == nil {
+		spec.MinReplicas = ptr.To[int32](1)
 	}
 }
 

@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
+	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
 	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
 	volcanoclient "volcano.sh/apis/pkg/client/clientset/versioned"
 
@@ -114,7 +115,7 @@ func Run(opt *options.ServerOption) error {
 	cfg.Burst = opt.Burst
 
 	// Create clients.
-	kubeClient, leaderElectionClientSet, mpiJobClientSet, volcanoClientSet, schedClientSet, err := createClientSets(cfg, opt.GangSchedulingName)
+	kubeClient, metricsClient, leaderElectionClientSet, mpiJobClientSet, volcanoClientSet, schedClientSet, err := createClientSets(cfg, opt.GangSchedulingName)
 	if err != nil {
 		return err
 	}
@@ -143,6 +144,7 @@ func Run(opt *options.ServerOption) error {
 
 		controller, err := controllersv1.NewMPIJobController(
 			kubeClient,
+			metricsClient,
 			mpiJobClientSet,
 			volcanoClientSet,
 			schedClientSet,
@@ -259,6 +261,7 @@ func createClientSets(
 	gangSchedulingName string,
 ) (
 	kubeclientset.Interface,
+	metrics.Interface,
 	kubeclientset.Interface,
 	mpijobclientset.Interface,
 	volcanoclient.Interface,
@@ -268,17 +271,22 @@ func createClientSets(
 
 	kubeClientSet, err := kubeclientset.NewForConfig(restclientset.AddUserAgent(config, "mpi-operator"))
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	metricsClientSet, err := metrics.NewForConfig(config)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	leaderElectionClientSet, err := kubeclientset.NewForConfig(restclientset.AddUserAgent(config, "leader-election"))
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	mpiJobClientSet, err := mpijobclientset.NewForConfig(config)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	var (
@@ -287,15 +295,15 @@ func createClientSets(
 	)
 	if gangSchedulingName == options.GangSchedulerVolcano {
 		if volcanoClientSet, err = volcanoclient.NewForConfig(restclientset.AddUserAgent(config, "volcano")); err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 	} else if len(gangSchedulingName) != 0 {
 		if schedClientSet, err = schedclientset.NewForConfig(restclientset.AddUserAgent(config, "scheduler-plugins")); err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
-	return kubeClientSet, leaderElectionClientSet, mpiJobClientSet, volcanoClientSet, schedClientSet, nil
+	return kubeClientSet, metricsClientSet, leaderElectionClientSet, mpiJobClientSet, volcanoClientSet, schedClientSet, nil
 }
 
 func checkCRDExists(clientset mpijobclientset.Interface, namespace string) bool {

@@ -154,6 +154,10 @@ type MPIJobSpec struct {
 	// +kubebuilder:default:=1
 	SlotsPerWorker *int32 `json:"slotsPerWorker,omitempty"`
 
+	// +optional
+	// +kubebuilder:default:=0
+	Priority *int32 `json:"priority,omitempty"`
+
 	// RunLauncherAsWorker indicates whether to run worker process in launcher
 	// Defaults to false.
 	// +optional
@@ -174,7 +178,7 @@ type MPIJobSpec struct {
 
 	// launcherCreationPolicy if WaitForWorkersReady, the launcher is created only after all workers are in Ready state. Defaults to AtStartup.
 	// +kubebuilder:validation:Enum:AtStartup;WaitForWorkersReady
-	// +kubebuilder:default:=AtStartup
+	// +kubebuilder:default:=WaitForWorkersReady
 	LauncherCreationPolicy LauncherCreationPolicy `json:"launcherCreationPolicy,omitempty"`
 
 	// MPIImplementation is the MPI implementation.
@@ -329,7 +333,9 @@ const (
 type ReplicaSpec struct {
 	// Replicas is the desired number of replicas of the given template.
 	// If unspecified, defaults to 1.
-	Replicas *int32 `json:"replicas,omitempty"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
 
 	// Template is the object that describes the pod that
 	// will be created for this replica. RestartPolicy in PodTemplateSpec

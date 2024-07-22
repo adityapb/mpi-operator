@@ -14,6 +14,7 @@
 
 BIN_DIR=_output/cmd/bin
 REPO_PATH="github.com/kubeflow/mpi-operator"
+CHARM_REPO="https://github.com/charmplusplus/charm.git"
 REL_OSARCH="linux/amd64"
 GitSHA=$(shell git rev-parse HEAD)
 Date=$(shell date "+%Y-%m-%d %H:%M:%S")
@@ -47,10 +48,10 @@ CRD_OPTIONS ?= "crd:generateEmbeddedObjectMeta=true"
 
 build: all
 
-all: ${BIN_DIR} fmt vet tidy lint test mpi-operator.v2
+all: ${BIN_DIR} fmt vet tidy lint test charm mpi-operator.v2
 
 .PHONY: mpi-operator.v2
-mpi-operator.v2:
+mpi-operator.v2: charm
 	go build -ldflags ${LD_FLAGS_V2} -o ${BIN_DIR}/mpi-operator.v2 ./cmd/mpi-operator/
 
 ${BIN_DIR}:
@@ -209,3 +210,11 @@ volcano-scheduler-crd: volcano-scheduler
 volcano-scheduler-deploy: volcano-scheduler-crd
 	mkdir -p $(PROJECT_DIR)/dep-manifests/volcano-scheduler/
 	cp -f /tmp/volcano.sh/volcano/installer/volcano-development.yaml $(PROJECT_DIR)/dep-manifests/volcano-scheduler/
+
+.PHONY: charm
+charm: ${BIN_DIR}
+	rm -rf $(PROJECT_DIR)/dep-libs/charm
+	mkdir -p $(PROJECT_DIR)/dep-libs/charm
+	git clone $(CHARM_REPO) $(PROJECT_DIR)/dep-libs/charm
+	cd $(PROJECT_DIR)/dep-libs/charm && git checkout shrinkexpand-fix && ./build charm++ netlrts-linux-x86_64 --enable-shrinkexpand -j8 --force
+	cd pkg/controller && $(PROJECT_DIR)/dep-libs/charm/bin/charmc -language c++ -seq -o ${PROJECT_DIR}/${BIN_DIR}/rescale_client rescale_client.C -lccs-client

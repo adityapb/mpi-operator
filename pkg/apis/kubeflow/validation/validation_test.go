@@ -45,7 +45,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationIntel,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -71,7 +71,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationIntel,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyOnFailure,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -80,7 +80,7 @@ func TestValidateMPIJob(t *testing.T) {
 							},
 						},
 						kubeflow.MPIReplicaTypeWorker: {
-							Replicas:      ptr.To[int32](3),
+							MaxReplicas:   ptr.To[int32](3),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -106,7 +106,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationMPICH,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -132,7 +132,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationMPICH,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyOnFailure,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -141,7 +141,7 @@ func TestValidateMPIJob(t *testing.T) {
 							},
 						},
 						kubeflow.MPIReplicaTypeWorker: {
-							Replicas:      ptr.To[int32](3),
+							MaxReplicas:   ptr.To[int32](3),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -198,7 +198,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementation("Unknown"),
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -207,7 +207,7 @@ func TestValidateMPIJob(t *testing.T) {
 							},
 						},
 						kubeflow.MPIReplicaTypeWorker: {
-							Replicas:      ptr.To[int32](1000),
+							MaxReplicas:   ptr.To[int32](1000),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -326,7 +326,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationOpenMPI,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](2),
+							MaxReplicas:   ptr.To[int32](2),
 							RestartPolicy: kubeflow.RestartPolicyAlways,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -335,7 +335,7 @@ func TestValidateMPIJob(t *testing.T) {
 							},
 						},
 						kubeflow.MPIReplicaTypeWorker: {
-							Replicas:      ptr.To[int32](0),
+							MaxReplicas:   ptr.To[int32](0),
 							RestartPolicy: "Invalid",
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{
@@ -379,7 +379,7 @@ func TestValidateMPIJob(t *testing.T) {
 					MPIImplementation: kubeflow.MPIImplementationIntel,
 					MPIReplicaSpecs: map[kubeflow.MPIReplicaType]*kubeflow.ReplicaSpec{
 						kubeflow.MPIReplicaTypeLauncher: {
-							Replicas:      ptr.To[int32](1),
+							MaxReplicas:   ptr.To[int32](1),
 							RestartPolicy: kubeflow.RestartPolicyNever,
 							Template: corev1.PodTemplateSpec{
 								Spec: corev1.PodSpec{

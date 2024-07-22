@@ -80,9 +80,15 @@ spec:
                 additionalProperties:
                   description: ReplicaSpec is a description of the replica
                   properties:
-                    replicas:
+                    maxReplicas:
                       description: |-
-                        Replicas is the desired number of replicas of the given template.
+                        MaxReplicas is the desired number of replicas of the given template.
+                        If unspecified, defaults to 1.
+                      format: int32
+                      type: integer
+                    minReplicas:
+                      description: |-
+                        MaxReplicas is the desired number of replicas of the given template.
                         If unspecified, defaults to 1.
                       format: int32
                       type: integer
@@ -7839,6 +7845,12 @@ spec:
                   Defaults to 1.
                 format: int32
                 type: integer
+              priority:
+                default: 0
+                description: |-
+                  Specifies the job priority
+                format: int32
+                type: integer
               sshAuthMountPath:
                 default: /root/.ssh
                 description: |-
@@ -8090,8 +8102,10 @@ rules:
   - update
 - apiGroups:
   - ""
+  - metrics.k8s.io
   resources:
   - pods
+  - nodes
   verbs:
   - create
   - get
@@ -8162,12 +8176,14 @@ rules:
   - '*'
 - apiGroups:
   - scheduling.x-k8s.io
+  - metrics.k8s.io
   resources:
   - podgroups
   verbs:
   - '*'
 - apiGroups:
   - scheduling.k8s.io
+  - metrics.k8s.io
   resources:
   - priorityclasses
   verbs:
@@ -8225,6 +8241,7 @@ spec:
       - args:
         - -alsologtostderr
         - --lock-namespace=mpi-operator
-        image: mpioperator/mpi-operator:master
+        image: adityapb/mpi-operator:autoscale
+        imagePullPolicy: Always
         name: mpi-operator
       serviceAccountName: mpi-operator

@@ -152,7 +152,7 @@ func newMPIJob(name string, replicas *int32, startTime, completionTime *metav1.T
 						},
 					},
 				},
-				Replicas: replicas,
+				MaxReplicas: replicas,
 			}
 	}
 	return mpiJob
@@ -529,7 +529,7 @@ func TestAllResourcesCreated(t *testing.T) {
 			for i := 0; i < 5; i++ {
 				f.expectCreatePodAction(fmjc.newWorker(mpiJobCopy, i))
 			}
-			f.expectCreateJobAction(fmjc.newLauncherJob(mpiJobCopy))
+			f.expectCreateJobAction(fmjc.newLauncherJob(mpiJobCopy, 1))
 
 			mpiJobCopy.Status.Conditions = []kubeflow.JobCondition{newCondition(kubeflow.JobCreated, corev1.ConditionTrue, mpiJobCreatedReason, "MPIJob default/foo is created.")}
 			mpiJobCopy.Status.ReplicaStatuses = map[kubeflow.MPIReplicaType]*kubeflow.ReplicaStatus{
@@ -554,7 +554,7 @@ func TestLauncherNotControlledByUs(t *testing.T) {
 	fmjc := f.newFakeMPIJobController()
 	mpiJobCopy := mpiJob.DeepCopy()
 	scheme.Scheme.Default(mpiJobCopy)
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcher.OwnerReferences = nil
 	f.setUpLauncher(launcher)
 
@@ -573,7 +573,7 @@ func TestLauncherSucceeded(t *testing.T) {
 	fmjc := f.newFakeMPIJobController()
 	mpiJobCopy := mpiJob.DeepCopy()
 	scheme.Scheme.Default(mpiJobCopy)
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcher.Status.Conditions = append(launcher.Status.Conditions, batchv1.JobCondition{
 		Type:   batchv1.JobComplete,
 		Status: corev1.ConditionTrue,
@@ -611,7 +611,7 @@ func TestLauncherFailed(t *testing.T) {
 	fmjc := f.newFakeMPIJobController()
 	mpiJobCopy := mpiJob.DeepCopy()
 	scheme.Scheme.Default(mpiJobCopy)
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcher.Status.Conditions = append(launcher.Status.Conditions, batchv1.JobCondition{
 		Type:    batchv1.JobFailed,
 		Status:  corev1.ConditionTrue,
@@ -764,7 +764,7 @@ func TestShutdownWorker(t *testing.T) {
 	fmjc := f.newFakeMPIJobController()
 	mpiJobCopy := mpiJob.DeepCopy()
 	scheme.Scheme.Default(mpiJobCopy)
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcher.Status.Conditions = append(launcher.Status.Conditions, batchv1.JobCondition{
 		Type:   batchv1.JobComplete,
 		Status: corev1.ConditionTrue,
@@ -821,7 +821,7 @@ func TestCreateSuspendedMPIJob(t *testing.T) {
 
 			// expect creating of the launcher
 			fmjc := f.newFakeMPIJobController()
-			launcher := fmjc.newLauncherJob(mpiJob)
+			launcher := fmjc.newLauncherJob(mpiJob, 1)
 			launcher.Spec.Suspend = ptr.To(true)
 			f.expectCreateJobAction(launcher)
 
@@ -891,7 +891,7 @@ func TestSuspendedRunningMPIJob(t *testing.T) {
 	f.setUpSecret(secret)
 
 	// setup launcher and its pod
-	launcher := fmjc.newLauncherJob(mpiJob)
+	launcher := fmjc.newLauncherJob(mpiJob, 1)
 	launcher.Spec.Suspend = ptr.To(false)
 	launcherPod := mockJobPod(launcher)
 	launcherPod.Status.Phase = corev1.PodRunning
@@ -964,7 +964,7 @@ func TestResumeMPIJob(t *testing.T) {
 
 	// expect creating of the launcher
 	fmjc := f.newFakeMPIJobController()
-	launcher := fmjc.newLauncherJob(mpiJob)
+	launcher := fmjc.newLauncherJob(mpiJob, 1)
 	launcher.Spec.Suspend = ptr.To(true)
 	f.setUpLauncher(launcher)
 
@@ -1047,7 +1047,7 @@ func TestLauncherActiveWorkerNotReady(t *testing.T) {
 	f.setUpSecret(secret)
 
 	fmjc := f.newFakeMPIJobController()
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcherPod := mockJobPod(launcher)
 	launcherPod.Status.Phase = corev1.PodRunning
 	f.setUpLauncher(launcher)
@@ -1097,7 +1097,7 @@ func TestLauncherActiveWorkerReady(t *testing.T) {
 	f.setUpSecret(secret)
 
 	fmjc := f.newFakeMPIJobController()
-	launcher := fmjc.newLauncherJob(mpiJobCopy)
+	launcher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	launcherPod := mockJobPod(launcher)
 	launcherPod.Status.Phase = corev1.PodRunning
 	f.setUpLauncher(launcher)
@@ -1169,7 +1169,7 @@ func TestWorkerReady(t *testing.T) {
 	updateDiscoverHostsInConfigMap(configMap, mpiJobCopy, runningPodList)
 	f.setUpConfigMap(configMap)
 
-	expLauncher := fmjc.newLauncherJob(mpiJobCopy)
+	expLauncher := fmjc.newLauncherJob(mpiJobCopy, 1)
 	f.expectCreateJobAction(expLauncher)
 
 	mpiJobCopy.Status.ReplicaStatuses = map[kubeflow.MPIReplicaType]*kubeflow.ReplicaStatus{
@@ -1641,7 +1641,7 @@ func TestNewLauncherAndWorker(t *testing.T) {
 			job := tc.job.DeepCopy()
 			scheme.Scheme.Default(job)
 			ctrl := &MPIJobController{}
-			launcher := ctrl.newLauncherJob(job)
+			launcher := ctrl.newLauncherJob(job, 1)
 			if !metav1.IsControlledBy(launcher, job) {
 				t.Errorf("Created launcher Pod is not controlled by Job")
 			}

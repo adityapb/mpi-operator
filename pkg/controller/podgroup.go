@@ -356,7 +356,7 @@ func calPGMinResource(minMember *int32, mpiJob *kubeflow.MPIJob, pcLister schedu
 
 	sort.Sort(sort.Reverse(order))
 	// Launcher + Worker > minMember
-	if minMember != nil && *order[0].Replicas+*order[1].Replicas > *minMember {
+	if minMember != nil && *order[0].MaxReplicas+*order[1].MaxReplicas > *minMember {
 		// If the launcher and workers have the same priority, it treats workers as a lower priority.
 		if order[0].priority == order[1].priority {
 			wIndex := order.getWorkerIndex()
@@ -364,19 +364,19 @@ func calPGMinResource(minMember *int32, mpiJob *kubeflow.MPIJob, pcLister schedu
 				klog.Warningf("Couldn't find the worker replicas")
 				return nil
 			}
-			order[wIndex].Replicas = ptr.To(*minMember - 1)
+			order[wIndex].MaxReplicas = ptr.To(*minMember - 1)
 		} else {
-			order[1].Replicas = ptr.To(*minMember - 1)
+			order[1].MaxReplicas = ptr.To(*minMember - 1)
 		}
 	}
 
 	minResources := corev1.ResourceList{}
 	for _, rp := range order {
-		if rp.Replicas == nil {
+		if rp.MaxReplicas == nil {
 			continue
 		}
 		for _, c := range rp.Template.Spec.Containers {
-			addResources(minResources, c.Resources, int64(*rp.Replicas))
+			addResources(minResources, c.Resources, int64(*rp.MaxReplicas))
 		}
 	}
 	return &minResources
@@ -385,10 +385,11 @@ func calPGMinResource(minMember *int32, mpiJob *kubeflow.MPIJob, pcLister schedu
 // calculateMinAvailable calculates minAvailable for the PodGroup.
 // If the schedulingPolicy.minAvailable is nil, it returns returns `NUM(workers) + 1`; otherwise returns `schedulingPolicy.minAvailable`.
 func calculateMinAvailable(mpiJob *kubeflow.MPIJob) *int32 {
-	if schedulingPolicy := mpiJob.Spec.RunPolicy.SchedulingPolicy; schedulingPolicy != nil && schedulingPolicy.MinAvailable != nil {
-		return schedulingPolicy.MinAvailable
-	}
-	return ptr.To(workerReplicas(mpiJob) + 1)
+	return ptr.To(int32(0))
+	//if schedulingPolicy := mpiJob.Spec.RunPolicy.SchedulingPolicy; schedulingPolicy != nil && schedulingPolicy.MinAvailable != nil {
+	//		return schedulingPolicy.MinAvailable
+	//	}
+	//	return ptr.To(c.workerReplicas(mpiJob) + 1)
 }
 
 // calculatePriorityClassName calculates the priorityClass name needed for podGroup according to the following priorities:

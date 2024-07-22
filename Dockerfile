@@ -7,6 +7,8 @@ ARG RELEASE_VERSION
 
 ADD . /go/src/github.com/kubeflow/mpi-operator
 WORKDIR /go/src/github.com/kubeflow/mpi-operator
+RUN apt update
+RUN apt install -y build-essential cmake zlib1g-dev
 RUN make RELEASE_VERSION=${RELEASE_VERSION} mpi-operator.$VERSION
 RUN ln -s mpi-operator.${VERSION} _output/cmd/bin/mpi-operator
 
