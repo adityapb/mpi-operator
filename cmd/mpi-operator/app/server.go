@@ -143,6 +143,7 @@ func Run(opt *options.ServerOption) error {
 		kubeflowInformerFactory := informers.NewSharedInformerFactoryWithOptions(mpiJobClientSet, 0, kubeflowInformerFactoryOpts...)
 
 		controller, err := controllersv1.NewMPIJobController(
+			cfg,
 			kubeClient,
 			metricsClient,
 			mpiJobClientSet,

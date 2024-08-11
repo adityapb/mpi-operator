@@ -37,6 +37,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,8 +53,10 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	schedulinglisters "k8s.io/client-go/listers/scheduling/v1"
+	restclientset "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 	metrics "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -269,7 +272,7 @@ func (pq PriorityQueue) Len() int { return len(pq) }
 
 func (pq PriorityQueue) Less(i, j int) bool {
 	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
-	return pq[i].priority > pq[j].priority
+	return pq[i].priority < pq[j].priority
 }
 
 func compare(a *Item, b *Item) int {
@@ -300,6 +303,7 @@ func (pq *PriorityQueue) update(item *Item, priority int) {
 
 // MPIJobController is the controller implementation for MPIJob resources.
 type MPIJobController struct {
+	config restclientset.Config
 	// kubeClient is a standard kubernetes clientset.
 	kubeClient    kubernetes.Interface
 	metricsClient metrics.Interface
@@ -341,6 +345,7 @@ type MPIJobController struct {
 	clock clock.WithTicker
 
 	latestReplicas    map[string]int32
+	configMaps        map[string]string
 	jobStatus         map[string]string
 	deferredAction    map[string]string
 	oldExpandReplicas map[string]int32
@@ -353,6 +358,7 @@ type MPIJobController struct {
 
 // NewMPIJobController returns a new MPIJob controller.
 func NewMPIJobController(
+	config *restclientset.Config,
 	kubeClient kubernetes.Interface,
 	metricsClient metrics.Interface,
 	kubeflowClient clientset.Interface,
@@ -366,13 +372,14 @@ func NewMPIJobController(
 	priorityClassInformer schedulinginformers.PriorityClassInformer,
 	mpiJobInformer informers.MPIJobInformer,
 	namespace, gangSchedulingName string) (*MPIJobController, error) {
-	return NewMPIJobControllerWithClock(kubeClient, metricsClient, kubeflowClient, volcanoClient, schedClient,
+	return NewMPIJobControllerWithClock(config, kubeClient, metricsClient, kubeflowClient, volcanoClient, schedClient,
 		configMapInformer, secretInformer, serviceInformer, jobInformer, podInformer,
 		priorityClassInformer, mpiJobInformer, &clock.RealClock{}, namespace, gangSchedulingName)
 }
 
 // NewMPIJobControllerWithClock returns a new MPIJob controller.
 func NewMPIJobControllerWithClock(
+	config *restclientset.Config,
 	kubeClient kubernetes.Interface,
 	metricsClient metrics.Interface,
 	kubeflowClient clientset.Interface,
@@ -418,6 +425,7 @@ func NewMPIJobControllerWithClock(
 	pqQueued := make(PriorityQueue, 0)
 
 	controller := &MPIJobController{
+		config:              *config,
 		kubeClient:          kubeClient,
 		metricsClient:       metricsClient,
 		kubeflowClient:      kubeflowClient,
@@ -441,12 +449,13 @@ func NewMPIJobControllerWithClock(
 		recorder:            recorder,
 		clock:               clock,
 		latestReplicas:      make(map[string]int32),
+		configMaps:          make(map[string]string),
 		jobStatus:           make(map[string]string),
 		deferredAction:      make(map[string]string),
 		oldExpandReplicas:   make(map[string]int32),
 		runningJobs:         pqRunning,
 		queuedJobs:          pqQueued,
-		freeSlots:           8,
+		freeSlots:           10,
 	}
 	// FIXME fix the free slots!
 
@@ -657,6 +666,10 @@ func (c *MPIJobController) processNextWorkItem() bool {
 func signalRescale(ipAddr string, port int32, oldProcs int32, newProcs int32) error {
 	klog.Infof("Running command: %s %s %s %s %s", "./opt/rescale_client", ipAddr, fmt.Sprint(port), fmt.Sprint(oldProcs), fmt.Sprint(newProcs))
 	out, err := exec.Command("./opt/rescale_client", ipAddr, fmt.Sprint(port), fmt.Sprint(oldProcs), fmt.Sprint(newProcs)).CombinedOutput()
+	if string(out) == "0" {
+		klog.Infof("Error when rescaling")
+		return fmt.Errorf("Error: %s", string(out))
+	}
 	klog.Infof("Rescale signal output: %s", string(out))
 	if err != nil {
 		klog.Infof("Error when rescaling")
@@ -683,7 +696,46 @@ func getJobKey(mpiJob *kubeflow.MPIJob) string {
 }
 
 func (c *MPIJobController) printJobStatuses() {
-	klog.Infof("%s", fmt.Sprint(c.jobStatus))
+	klog.Infof("Free slots = %d, %s", c.freeSlots, fmt.Sprint(c.jobStatus))
+
+	qPrios := make([]int, 0)
+	for _, item := range c.queuedJobs {
+		qPrios = append(qPrios, item.priority)
+	}
+
+	//klog.Infof("Running jobs = %s", fmt.Sprint(c.runningJobs))
+	klog.Infof("Queued job prios = %s", fmt.Sprint(qPrios))
+}
+
+func (c *MPIJobController) writeHostFile(pod *v1.Pod, hostFileString string) (string, string, error) {
+	buf := &bytes.Buffer{}
+	errBuf := &bytes.Buffer{}
+	echoCmd := fmt.Sprintf("echo '%s'", hostFileString)
+	command := fmt.Sprintf("%s > %s", echoCmd, configMountPath+"/"+hostfileName)
+	klog.Infof("Running command - %s", command)
+	request := c.kubeClient.CoreV1().RESTClient().
+		Post().
+		Namespace(pod.Namespace).
+		Resource("pods").
+		Name(pod.Name).
+		SubResource("exec").
+		VersionedParams(&v1.PodExecOptions{
+			Command: []string{"/bin/sh", "-c", command},
+			Stdin:   false,
+			Stdout:  true,
+			Stderr:  true,
+			TTY:     true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(&c.config, "POST", request.URL())
+	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
+		Stdout: buf,
+		Stderr: errBuf,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("%w Failed executing command %s on %v/%v", err, command, pod.Namespace, pod.Name)
+	}
+	return buf.String(), errBuf.String(), nil
 }
 
 // syncHandler compares the actual state with the desired, and attempts to
@@ -753,6 +805,7 @@ func (c *MPIJobController) syncHandler(key string) error {
 		delete(c.deferredAction, key)
 		delete(c.latestReplicas, key)
 		delete(c.jobStatus, key)
+		delete(c.configMaps, key)
 
 		for idx, item := range c.runningJobs {
 			if getJobKey(&item.mpiJob) == getJobKey(mpiJob) {
@@ -922,16 +975,19 @@ func (c *MPIJobController) syncHandler(key string) error {
 				return err
 			}
 
-			if config, err := c.getOrCreateConfigMap(mpiJob); config == nil || err != nil {
+			config, err := c.getOrCreateConfigMap(mpiJob)
+			if config == nil || err != nil {
 				return fmt.Errorf("getting or creating ConfigMap: %w", err)
 			}
+			c.configMaps[getJobKey(mpiJob)] = config.Data[hostfileName]
 
 			if isExpand {
 				c.deferredAction[key] = expand
 			}
 
+			config, err = c.getConfigMap(mpiJob)
 			ready := c.countReadyWorkerPods(worker)
-			if ready == len(worker) {
+			if ready == len(worker) && err == nil && config.Data[hostfileName] == c.configMaps[getJobKey(mpiJob)] {
 				action, ok = c.deferredAction[key]
 				if !ok {
 					action = noop
@@ -941,7 +997,16 @@ func (c *MPIJobController) syncHandler(key string) error {
 					klog.Infof("Workers ready to expand %s, last replicas = %s, new pods = %s",
 						fmt.Sprint(ready), fmt.Sprint(lastReplicas), fmt.Sprint(newPods))
 
-					time.Sleep(5)
+					//launcherPods, err := c.jobPods(launcher)
+
+					//stdout, stderr, err := c.writeHostFile(launcherPods[0], config.Data[hostfileName])
+					//if err != nil {
+					//	fmt.Sprintf("%w", err)
+					//	return err
+					//}
+					//klog.Infof("Out: %s\nErr: %s", stdout, stderr)
+
+					time.Sleep(1.5e10)
 
 					// wait for workers to be ready and send expand signal
 					klog.Infof("Sending expand signal to job %q (%v)", key, c.clock.Since(startTime))
@@ -955,8 +1020,11 @@ func (c *MPIJobController) syncHandler(key string) error {
 				klog.Infof("Waiting for workers to be ready %s/%s", fmt.Sprint(ready), fmt.Sprint(len(worker)))
 			}
 		}
+
+		config, err := c.getConfigMap(mpiJob)
 		if launcher == nil {
-			if c.jobStatus[getJobKey(mpiJob)] == created && c.countReadyWorkerPods(worker) == len(worker) {
+			if err == nil && config.Data[hostfileName] == c.configMaps[getJobKey(mpiJob)] &&
+				c.jobStatus[getJobKey(mpiJob)] == created && c.countReadyWorkerPods(worker) == len(worker) {
 				launcher, err = c.kubeClient.BatchV1().Jobs(namespace).Create(context.TODO(), c.newLauncherJob(mpiJob, len(worker)), metav1.CreateOptions{})
 				if err != nil {
 					c.recorder.Eventf(mpiJob, corev1.EventTypeWarning, mpiJobFailedReason, "launcher pod created failed: %v", err)
@@ -1139,6 +1207,14 @@ func (c *MPIJobController) countReadyWorkerPods(workers []*corev1.Pod) int {
 	return ready
 }
 
+func (c *MPIJobController) getConfigMap(mpiJob *kubeflow.MPIJob) (*corev1.ConfigMap, error) {
+	cm, err := c.configMapLister.ConfigMaps(mpiJob.Namespace).Get(mpiJob.Name + configSuffix)
+	if err != nil {
+		return nil, err
+	}
+	return cm, nil
+}
+
 // getOrCreateConfigMap gets the ConfigMap controlled by this MPIJob, or creates
 // one if it doesn't exist.
 func (c *MPIJobController) getOrCreateConfigMap(mpiJob *kubeflow.MPIJob) (*corev1.ConfigMap, error) {
@@ -1169,12 +1245,16 @@ func (c *MPIJobController) getOrCreateConfigMap(mpiJob *kubeflow.MPIJob) (*corev
 
 	// If the ConfigMap is changed, update it
 	if !equality.Semantic.DeepEqual(cm.Data, newCM.Data) {
+		klog.Infof("Update config map for job %s: %s", getJobKey(mpiJob), fmt.Sprint(newCM.Data))
 		cm = cm.DeepCopy()
 		cm.Data = newCM.Data
 		cm, err = c.kubeClient.CoreV1().ConfigMaps(mpiJob.Namespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, err
 		}
+
+		cmCheck, _ := c.configMapLister.ConfigMaps(mpiJob.Namespace).Get(mpiJob.Name + configSuffix)
+		klog.Infof("After CM update: %s", fmt.Sprint(cmCheck.Data))
 	}
 
 	return cm, nil
@@ -1310,7 +1390,6 @@ func (c *MPIJobController) addWorker(mpiJob *kubeflow.MPIJob, workerIndex int) (
 }
 
 func (c *MPIJobController) enqueueJobInternal(mpiJob *kubeflow.MPIJob) {
-	klog.Infof("CALLED!")
 	for _, item := range c.queuedJobs {
 		if getJobKey(&item.mpiJob) == getJobKey(mpiJob) {
 			klog.Infof("Skipping enqueue since already in queue")
@@ -1365,6 +1444,9 @@ func (c *MPIJobController) calculateWorkerReplicas(mpiJob *kubeflow.MPIJob) (int
 			}
 			it := c.runningJobs[index]
 			index -= 1
+			if *it.mpiJob.Spec.Priority > *mpiJob.Spec.Priority {
+				break
+			}
 			workerPodList, err := c.getRunningWorkerPods(&it.mpiJob)
 			if err != nil {
 				return -1, err
@@ -2012,6 +2094,7 @@ func (c *MPIJobController) newWorker(mpiJob *kubeflow.MPIJob, index int) *corev1
 }
 
 func (c *MPIJobController) newLauncherJob(mpiJob *kubeflow.MPIJob, numWorkers int) *batchv1.Job {
+	klog.Infof("Creating launcher job for %s with %d workers", getJobKey(mpiJob), numWorkers)
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      mpiJob.Name + launcherSuffix,
@@ -2064,7 +2147,7 @@ func (c *MPIJobController) newLauncherPodTemplate(mpiJob *kubeflow.MPIJob, numWo
 	container := &podTemplate.Spec.Containers[0]
 	container.Env = append(container.Env, launcherEnvVars...)
 	container.Args = append([]string{fmt.Sprint("+p", numWorkers)}, container.Args...)
-	container.Args = append(container.Args, "++nodelist", "/etc/mpi/hostfile", "++server", "++server-port", fmt.Sprint(ccsPort))
+	container.Args = append(container.Args, "++nodelist", configMountPath+"/"+hostfileName, "++server", "++server-port", fmt.Sprint(ccsPort))
 	slotsStr := strconv.Itoa(int(*mpiJob.Spec.SlotsPerWorker))
 	switch mpiJob.Spec.MPIImplementation {
 	case kubeflow.MPIImplementationOpenMPI:
