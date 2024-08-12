@@ -1,0 +1,73 @@
+
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: charm-0
+spec:
+  slotsPerWorker: 1
+  priority: 1
+  runPolicy:
+    cleanPodPolicy: Running
+    ttlSecondsAfterFinished: 60
+  sshAuthMountPath: /home/mpiuser/.ssh
+  mpiReplicaSpecs:
+    Launcher:
+      maxReplicas: 1
+      template:
+        spec:
+          volumes:
+          - name: shared-storage
+            persistentVolumeClaim:
+              claimName: shared-storage
+          containers:
+          - image: adityapb/charm-netlrts:dev2
+            imagePullPolicy: Always
+            name: mpi-launcher
+            securityContext:
+              runAsUser: 1000
+            command:
+            - /app/charmrun
+            args:
+            - /app/jacobi2d
+            - "16384"
+            - "4096"
+            - "1600"
+            - +balancer
+            - GreedyLB
+            - +LBDebug
+            - "3"
+            - ++verbose
+            volumeMounts:
+              - mountPath: /dev/shm
+                name: shared-storage
+            resources:
+              limits:
+                cpu: 1
+                memory: 1Gi
+    Worker:
+      minReplicas: 1
+      maxReplicas: 10
+      template:
+        spec:
+          volumes:
+          - name: shared-storage
+            persistentVolumeClaim:
+              claimName: shared-storage
+          containers:
+          - image: adityapb/charm-netlrts:dev2
+            imagePullPolicy: Always
+            name: mpi-worker
+            securityContext:
+              runAsUser: 1000
+            command:
+            - /usr/sbin/sshd
+            args:
+            - -De
+            - -f
+            - /home/mpiuser/.sshd_config
+            volumeMounts:
+              - mountPath: /dev/shm
+                name: shared-storage
+            resources:
+              limits:
+                cpu: 1
