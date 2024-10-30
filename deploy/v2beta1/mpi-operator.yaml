@@ -483,6 +483,8 @@ spec:
         - -alsologtostderr
         - --lock-namespace
         - mpi-operator
-        image: adityapb/mpi-operator:latest
+        image: us.icr.io/charm-registry/mpi-operator:latest
         name: mpi-operator
+      imagePullSecrets:
+        - name: all-icr-io
       serviceAccountName: mpi-operator
