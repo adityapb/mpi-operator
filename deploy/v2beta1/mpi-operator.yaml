@@ -485,7 +485,7 @@ spec:
         - -alsologtostderr
         - --lock-namespace
         - mpi-operator
-        image: us.icr.io/charm-registry/mpi-operator:latest
+        image: us.icr.io/charm-registry/mpi-operator:dev
         name: mpi-operator
       imagePullSecrets:
         - name: all-icr-io

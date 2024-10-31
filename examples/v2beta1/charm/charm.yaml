@@ -14,7 +14,7 @@ spec:
       template:
         spec:
           containers:
-          - image: adityapb/charm-netlrts:latest
+          - image: us.icr.io/charm-registry/charm-netlrts:dev2
             name: mpi-launcher
             securityContext:
               runAsUser: 1000
