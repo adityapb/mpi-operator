@@ -42,13 +42,8 @@ spec:
       replicas: 4
       template:
         spec:
-          volumes:
-          - name: data
-            hostPath:
-              path: /home/bhosale/mount
-              type: DirectoryOrCreate
           containers:
-          - image: adityapb/charm-netlrts:latest
+          - image: us.icr.io/charm-registry/charm-netlrts:dev2
             name: mpi-worker
             securityContext:
               runAsUser: 1000
@@ -58,13 +53,12 @@ spec:
             - -De
             - -f
             - /home/mpiuser/.sshd_config
-            volumeMounts:
-              - mountPath: /home/bhosale/mount
-                name: data
             resources:
               limits:
                 cpu: 1
                 memory: 4Gi
+          imagePullSecrets:
+            - name: all-icr-io
         securityContext:
             fsGroup: 1001
             runAsUser: 1001

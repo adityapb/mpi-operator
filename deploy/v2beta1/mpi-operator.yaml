@@ -426,9 +426,11 @@ rules:
 - apiGroups:
   - scheduling.incubator.k8s.io
   - scheduling.sigs.dev
+  - coordination.k8s.io
   resources:
   - queues
   - podgroups
+  - leases
   verbs:
   - '*'
 ---
