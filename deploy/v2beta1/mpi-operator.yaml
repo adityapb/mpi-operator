@@ -8241,7 +8241,9 @@ spec:
       - args:
         - -alsologtostderr
         - --lock-namespace=mpi-operator
-        image: adityapb/mpi-operator:autoscale
+        image: us.icr.io/charm-registry/mpi-operator:autoscale
         imagePullPolicy: Always
         name: mpi-operator
+      imagePullSecrets:
+        - name: all-icr-io
       serviceAccountName: mpi-operator
