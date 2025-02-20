@@ -15,12 +15,8 @@ spec:
       maxReplicas: 1
       template:
         spec:
-          volumes:
-          - name: shared-storage
-            persistentVolumeClaim:
-              claimName: shared-storage
           containers:
-          - image: adityapb/charm-netlrts:dev2
+          - image: adityapb/charm-netlrts:dev-new
             imagePullPolicy: Always
             name: mpi-launcher
             securityContext:
@@ -29,17 +25,14 @@ spec:
             - /app/charmrun
             args:
             - /app/jacobi2d
-            - "8192"
-            - "1024"
+            - "4096"
+            - "512"
             - "300"
             - +balancer
-            - GreedyLB
+            - MetisLB
             - +LBDebug
             - "3"
             - ++verbose
-            volumeMounts:
-              - mountPath: /dev/shm
-                name: shared-storage
             resources:
               limits:
                 cpu: 1
@@ -49,12 +42,8 @@ spec:
       maxReplicas: 10
       template:
         spec:
-          volumes:
-          - name: shared-storage
-            persistentVolumeClaim:
-              claimName: shared-storage
           containers:
-          - image: adityapb/charm-netlrts:dev2
+          - image: adityapb/charm-netlrts:dev-new
             imagePullPolicy: Always
             name: mpi-worker
             securityContext:
@@ -65,9 +54,6 @@ spec:
             - -De
             - -f
             - /home/mpiuser/.sshd_config
-            volumeMounts:
-              - mountPath: /dev/shm
-                name: shared-storage
             resources:
               limits:
                 cpu: 1
