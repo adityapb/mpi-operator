@@ -8,7 +8,7 @@ spec:
   priority: 1
   runPolicy:
     cleanPodPolicy: Running
-    ttlSecondsAfterFinished: 60
+    ttlSecondsAfterFinished: 600
   sshAuthMountPath: /home/mpiuser/.ssh
   mpiReplicaSpecs:
     Launcher:
@@ -25,9 +25,9 @@ spec:
             - /app/charmrun
             args:
             - /app/jacobi2d
-            - "4096"
+            - "8192"
             - "512"
-            - "3000"
+            - "600"
             - +balancer
             - MetisLB
             - +LBDebug
@@ -36,7 +36,6 @@ spec:
             resources:
               limits:
                 cpu: 1
-                memory: 1Gi
     Worker:
       minReplicas: 1
       maxReplicas: 10
@@ -46,6 +45,9 @@ spec:
           - image: adityapb/charm-netlrts:dev-new
             imagePullPolicy: Always
             name: mpi-worker
+            volumeMounts:
+            - mountPath: /dev/shm
+              name: shm-volume
             securityContext:
               runAsUser: 1000
             command:
@@ -57,3 +59,8 @@ spec:
             resources:
               limits:
                 cpu: 1
+          volumes:
+            - name: shm-volume
+              emptyDir:
+                medium: Memory
+                sizeLimit: 1Gi

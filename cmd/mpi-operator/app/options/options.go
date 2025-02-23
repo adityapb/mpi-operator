@@ -59,7 +59,7 @@ func (s *ServerOption) AddFlags(fs *flag.FlagSet) {
 		`The namespace to monitor mpijobs. If unset, it monitors all namespaces cluster-wide. 
                 If set, it only monitors mpijobs in the given namespace.`)
 
-	fs.IntVar(&s.Threadiness, "threadiness", 2,
+	fs.IntVar(&s.Threadiness, "threadiness", 1,
 		`How many threads to process the main logic`)
 
 	fs.BoolVar(&s.PrintVersion, "version", false, "Show version and quit")

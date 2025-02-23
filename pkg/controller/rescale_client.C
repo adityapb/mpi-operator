@@ -72,7 +72,7 @@ int main (int argc, char **argv)
     }
 
     //printf("Waiting for reply...\n" );
-    if (CcsRecvResponse(&server, cmdLen, bitmap , 180) == -1) {
+    if (CcsRecvResponse(&server, cmdLen, bitmap , 30) == -1) {
         printf("0");
         return 0;
     }

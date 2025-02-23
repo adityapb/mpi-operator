@@ -8241,7 +8241,7 @@ spec:
       - args:
         - -alsologtostderr
         - --lock-namespace=mpi-operator
-        image: adityapb/mpi-operator:autoscale
+        image: adityapb/mpi-operator:rescale-gap
         imagePullPolicy: Always
         name: mpi-operator
       serviceAccountName: mpi-operator

@@ -8,7 +8,7 @@ spec:
   priority: 3
   runPolicy:
     cleanPodPolicy: Running
-    ttlSecondsAfterFinished: 60
+    ttlSecondsAfterFinished: 600
   sshAuthMountPath: /home/mpiuser/.ssh
   mpiReplicaSpecs:
     Launcher:
@@ -36,7 +36,6 @@ spec:
             resources:
               limits:
                 cpu: 1
-                memory: 1Gi
     Worker:
       minReplicas: 1
       maxReplicas: 10
