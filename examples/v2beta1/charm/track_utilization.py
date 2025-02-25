@@ -1,7 +1,9 @@
 import subprocess
 import time
 
-output_file = "/home/aditya/mpi-operator/examples/v2beta1/charm/pod_utilization.log"
+output_file = "/home/aditya/mpi-operator/examples/v2beta1/charm/pod_utilization_long2.log"
+
+open(output_file, "w").close()  # Clear the file before starting
 
 while True:
     result = subprocess.run(["kubectl", "get", "pods"], capture_output=True, text=True)

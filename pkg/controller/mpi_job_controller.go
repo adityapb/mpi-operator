@@ -276,16 +276,17 @@ func (pq PriorityQueue) DeepCopy() PriorityQueue {
 
 func (pq PriorityQueue) Len() int { return len(pq) }
 
-func (pq PriorityQueue) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
-	if pq[i].priority == pq[j].priority {
-		return pq[j].timestamp.Before(pq[i].timestamp) // earlier timestamp has higher priority
-	}
-	return pq[i].priority < pq[j].priority
-}
-
 func compare(a *Item, b *Item) int {
-	return cmp.Compare(a.priority, b.priority)
+	if a.priority == b.priority {
+		if a.timestamp.Before(b.timestamp) {
+			return -1 // earlier timestamp has higher priority
+		} else if a.timestamp.After(b.timestamp) {
+			return 1 // earlier timestamp has higher priority
+		} else {
+			return 0 // equal timestamps
+		} // earlier timestamp has higher priority
+	}
+	return cmp.Compare(b.priority, a.priority)
 }
 
 func (pq *PriorityQueue) Push(x any) {
@@ -780,8 +781,8 @@ func (c *MPIJobController) assignFreeSlots() error {
 		}
 
 		if runPriority < queuePriority {
-			idxQueued += 1
 			it = itQueued
+			c.queuedJobs = append(c.queuedJobs[:idxQueued], c.queuedJobs[idxQueued+1:]...)
 			launcherCount = 1
 			//action = create
 		} else {
@@ -799,15 +800,24 @@ func (c *MPIJobController) assignFreeSlots() error {
 		jobMinReplicas := *it.mpiJob.Spec.MPIReplicaSpecs[kubeflow.MPIReplicaTypeWorker].MinReplicas
 		if int32(len(workerPodList)) < jobMaxReplicas {
 			newReplicas = int32(math.Min(float64(jobMaxReplicas),
-				float64(int(c.latestReplicas[getJobKey(&it.mpiJob)])+c.freeSlots)))
+				float64(int(c.latestReplicas[getJobKey(&it.mpiJob)])+c.freeSlots-int(launcherCount))))
 			klog.Infof("Expanding %s to %d, freecount = %d", getJobKey(&it.mpiJob),
 				newReplicas, c.freeSlots)
+
 			if newReplicas < jobMinReplicas {
+				if launcherCount == 1 {
+					c.queuedJobs.Push(it)
+					idxQueued += 1
+				}
 				continue
 			}
 
 			if c.jobStatus[getJobKey(&it.mpiJob)] == running && c.clock.Now().Sub(c.lastAction[getJobKey(&it.mpiJob)]) < c.rescaleGap {
 				minTime = min(minTime, c.rescaleGap-c.clock.Now().Sub(c.lastAction[getJobKey(&it.mpiJob)]))
+				continue
+			}
+
+			if c.jobStatus[getJobKey(&it.mpiJob)] == expanding {
 				continue
 			}
 
@@ -823,7 +833,7 @@ func (c *MPIJobController) assignFreeSlots() error {
 		}
 	}
 	//c.runningJobs = c.runningJobs[idxRunning:]
-	c.queuedJobs = c.queuedJobs[idxQueued:]
+	//c.queuedJobs = c.queuedJobs[idxQueued:]
 
 	if minTime < math.MaxInt64 {
 		c.queue.AddAfter(assignFreeSlotsFlag, minTime)
@@ -980,7 +990,7 @@ func (c *MPIJobController) syncHandler(key string) error {
 			//action, _, newPods, err = c.getAction(mpiJob)
 
 			isExpand := false
-			if status, ok := c.jobStatus[getJobKey(mpiJob)]; ok && status == running {
+			if status, ok := c.jobStatus[getJobKey(mpiJob)]; ok && status == expanding {
 				selector, err := workerSelector(mpiJob.Name)
 				if err != nil {
 					return err
@@ -990,7 +1000,7 @@ func (c *MPIJobController) syncHandler(key string) error {
 					return err
 				}
 				if len(podFullList) < int(lastReplicas) {
-					isExpand = true
+					isExpand = true // this will be true only during the first pass through synchandler
 				}
 			}
 
@@ -1463,6 +1473,8 @@ func (c *MPIJobController) checkJobQueue() error {
 			index += 1
 			continue
 		}
+		c.freeSlots -= int(c.latestReplicas[getJobKey(&mpiJob)]) // This is for the workers
+		c.freeSlots -= 1                                         // This one is for the launcher
 		c.queue.AddRateLimited(getJobKey(&mpiJob))
 		if index < len(c.queuedJobs)-1 {
 			c.queuedJobs = append(c.queuedJobs[:index], c.queuedJobs[index+1:]...)
@@ -1529,6 +1541,7 @@ func (c *MPIJobController) calculateWorkerReplicas(mpiJob *kubeflow.MPIJob) (int
 				}
 
 				it := c.runningJobs[index]
+				index -= 1
 
 				// if the running job priority is higher than the new job
 				// don't shrink it
@@ -1539,7 +1552,7 @@ func (c *MPIJobController) calculateWorkerReplicas(mpiJob *kubeflow.MPIJob) (int
 				if c.jobStatus[getJobKey(&it.mpiJob)] != running {
 					continue
 				}
-				index -= 1
+
 				workerPodList, err := c.getRunningWorkerPods(&it.mpiJob)
 				if err != nil {
 					return -1, err
