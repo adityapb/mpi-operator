@@ -58,7 +58,7 @@ int main (int argc, char **argv)
     }
 
     //printf("Waiting for reply...\n" );
-    if (CcsRecvResponse(&server, cmdLen, msg , 15) == -1) {
+    if (CcsRecvResponse(&server, cmdLen, msg , 180) == -1) {
         printf("0");
         return 0;
     }

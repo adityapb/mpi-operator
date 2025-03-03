@@ -468,8 +468,8 @@ func NewMPIJobControllerWithClock(
 		oldExpandReplicas:   make(map[string]int32),
 		runningJobs:         pqRunning,
 		queuedJobs:          pqQueued,
-		freeSlots:           10,
-		rescaleGap:          30 * time.Second,
+		freeSlots:           60,
+		rescaleGap:          1 * time.Second, // 3 minutes
 	}
 	// FIXME fix the free slots!
 
@@ -2111,7 +2111,7 @@ func (c *MPIJobController) newWorker(mpiJob *kubeflow.MPIJob, index int) *corev1
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: launcherMatch,
 			},
-			TopologyKey: "topology.kubernetes.io/zone",
+			TopologyKey: "kubernetes.io/hostname",
 		},
 	})
 	schedulingAffinity = append(schedulingAffinity, corev1.WeightedPodAffinityTerm{
@@ -2120,7 +2120,7 @@ func (c *MPIJobController) newWorker(mpiJob *kubeflow.MPIJob, index int) *corev1
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: workerMatch,
 			},
-			TopologyKey: "topology.kubernetes.io/zone",
+			TopologyKey: "kubernetes.io/hostname",
 		},
 	})
 
