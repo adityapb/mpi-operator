@@ -6,6 +6,7 @@ metadata:
 spec:
   slotsPerWorker: 1
   priority: 1
+  runLauncherAsWorker: true
   runPolicy:
     cleanPodPolicy: Running
     ttlSecondsAfterFinished: 600
@@ -16,33 +17,40 @@ spec:
       template:
         spec:
           containers:
-          - image: adityapb/charm-netlrts:dev-new
+          - image: adityapb/charm-mpi:latest
             imagePullPolicy: Always
             name: mpi-launcher
             securityContext:
               runAsUser: 1000
             command:
-            - /app/charmrun
+            - /app/charmrun_elastic
             args:
             - /app/jacobi2d
-            - "8192"
+            - "32768"
             - "512"
-            - "600"
+            - "10000"
             - +balancer
-            - MetisLB
+            - GreedyCentralLB
             - +LBDebug
             - "3"
-            - ++verbose
             resources:
               limits:
                 cpu: 1
+            volumeMounts:
+            - mountPath: /dev/shm
+              name: shm-volume
+          volumes:
+          - name: shm-volume
+            emptyDir:
+              medium: Memory
+              sizeLimit: 1.5Gi
     Worker:
-      minReplicas: 1
-      maxReplicas: 10
+      minReplicas: 15
+      maxReplicas: 31
       template:
         spec:
           containers:
-          - image: adityapb/charm-netlrts:dev-new
+          - image: adityapb/charm-mpi:latest
             imagePullPolicy: Always
             name: mpi-worker
             volumeMounts:
@@ -63,4 +71,4 @@ spec:
             - name: shm-volume
               emptyDir:
                 medium: Memory
-                sizeLimit: 1Gi
+                sizeLimit: 1.5Gi

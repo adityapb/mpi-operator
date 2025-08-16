@@ -702,7 +702,7 @@ func (c *MPIJobController) sendRescaleSignal(mpiJob *kubeflow.MPIJob, oldPodCoun
 		return err
 	}
 	ipAddr := launcherPods[0].Status.PodIP
-	return signalRescale(ipAddr, ccsPort, oldPodCount, newPodCount)
+	return signalRescale(ipAddr, ccsPort, oldPodCount+1, newPodCount+1)
 }
 
 func getJobKey(mpiJob *kubeflow.MPIJob) string {
@@ -1942,8 +1942,8 @@ func newConfigMap(mpiJob *kubeflow.MPIJob, workerReplicas int32) *corev1.ConfigM
 	// ref: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
 	// launcher can be reach with hostname or service name
 	if ptr.Deref(mpiJob.Spec.RunLauncherAsWorker, false) {
-		name := mpiJob.Name + launcherSuffix
-		buffer.WriteString(fmt.Sprintf("host %s.%s ++cpus %d\n", name, mpiJob.Name, slots))
+		//buffer.WriteString(fmt.Sprintf("host %s.%s ++cpus %d\n", name, mpiJob.Name, slots))
+		buffer.WriteString(fmt.Sprintf("localhost slots=%d\n", slots))
 		/*switch mpiJob.Spec.MPIImplementation {
 		case kubeflow.MPIImplementationOpenMPI:
 			buffer.WriteString(fmt.Sprintf("%s.%s.%s.svc slots=%d\n", name, mpiJob.Name, mpiJob.Namespace, slots))
@@ -1952,10 +1952,11 @@ func newConfigMap(mpiJob *kubeflow.MPIJob, workerReplicas int32) *corev1.ConfigM
 		}*/
 	}
 
-	for i := 0; i < int(workerReplicas); i++ {
+	for i := 0; i < int(*mpiJob.Spec.MPIReplicaSpecs[kubeflow.MPIReplicaTypeWorker].MaxReplicas); i++ {
 		name := workerName(mpiJob, i)
 
-		buffer.WriteString(fmt.Sprintf("host %s.%s ++cpus %d\n", name, mpiJob.Name, slots))
+		//buffer.WriteString(fmt.Sprintf("host %s.%s ++cpus %d\n", name, mpiJob.Name, slots))
+		buffer.WriteString(fmt.Sprintf("%s.%s.%s.svc slots=%d\n", name, mpiJob.Name, mpiJob.Namespace, slots))
 		/*switch mpiJob.Spec.MPIImplementation {
 		case kubeflow.MPIImplementationOpenMPI:
 			buffer.WriteString(fmt.Sprintf("%s.%s.%s.svc slots=%d\n", name, mpiJob.Name, mpiJob.Namespace, slots))
@@ -2225,7 +2226,7 @@ func (c *MPIJobController) newLauncherPodTemplate(mpiJob *kubeflow.MPIJob, numWo
 	}
 	container := &podTemplate.Spec.Containers[0]
 	container.Env = append(container.Env, launcherEnvVars...)
-	container.Args = append([]string{fmt.Sprint("+p", numWorkers)}, container.Args...)
+	container.Args = append([]string{fmt.Sprint("+p", numWorkers+1)}, container.Args...)
 	container.Args = append(container.Args, "++nodelist", configMountPath+"/"+hostfileName, "++server", "++server-port", fmt.Sprint(ccsPort))
 	slotsStr := strconv.Itoa(int(*mpiJob.Spec.SlotsPerWorker))
 	switch mpiJob.Spec.MPIImplementation {

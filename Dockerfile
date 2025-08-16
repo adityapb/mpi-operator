@@ -9,6 +9,12 @@ ADD . /go/src/github.com/kubeflow/mpi-operator
 WORKDIR /go/src/github.com/kubeflow/mpi-operator
 RUN apt update
 RUN apt install -y build-essential cmake zlib1g-dev
+RUN apt update \
+    && apt install -y --no-install-recommends \
+        g++ \
+        gfortran \
+        libopenmpi-dev \
+    && rm -rf /var/lib/apt/lists/*
 RUN make RELEASE_VERSION=${RELEASE_VERSION} mpi-operator.$VERSION
 RUN ln -s mpi-operator.${VERSION} _output/cmd/bin/mpi-operator
 

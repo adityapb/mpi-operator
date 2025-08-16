@@ -11,7 +11,7 @@ min_pes = [1, 4, 4]
 timesteps_per_job = [1000, 2000, 500]
 job_prefixes = ["small", "medium", "large"]
 
-njobs = 20
+njobs = 16
 
 
 def create_job(prefix, job_index, priority, problem_size, min_replicas, max_replicas, timesteps):
@@ -30,40 +30,45 @@ def create_job(prefix, job_index, priority, problem_size, min_replicas, max_repl
         problem_size=problem_size,
         chare_size=chare_size,
         timesteps=timesteps,
-        min_replicas=min_replicas,
-        max_replicas=max_replicas,
+        min_replicas=min(max_replicas-1, 59),
+        max_replicas=min(max_replicas-1, 59),
     )
 
-    with open(f"jobs/charm-job-{job_index}.yaml", "w") as file:
+    with open(f"jobs_elastic/charm-job-{job_index}.yaml", "w") as file:
         file.write(job_yaml)
 
 
 def generate_jobs():
-    jobs = [0] * int(njobs * 0.25)
-    jobs += [1] * int(njobs * 0.5)
-    jobs += [2] * int(njobs * 0.25)
-    shuffle(jobs)
-    print(jobs)
+    sizes_per_pe = [256, 512, 1024, 1024]
+    min_pes = [2, 4, 8, 16]
+    timesteps_per_job = [40000, 40000, 40000, 10000]
+    job_prefixes = ["small", "medium", "large", "xlarge"]
+    counts = [0, 0, 0, 0]
+    njobs = 16
+
+    jobs = [2, 1, 1, 0, 3, 3, 0, 3, 1, 1, 0, 3, 0, 1, 1, 1]
+    priorities = [2, 3, 4, 4, 2, 1, 4, 1, 4, 3, 4, 1, 5, 3, 3, 3]
+
     for i, job_index in enumerate(jobs):
         idx = job_index
-        priority = 3 - idx + randint(0, 3)
+        priority = priorities[i]
         min_replicas = min_pes[idx]
         max_replicas = 4 * min_replicas
         problem_size = min_replicas * sizes_per_pe[idx]
-        timesteps = timesteps_per_job[idx] + 100 * randint(0, 10)
+        timesteps = timesteps_per_job[idx]
         prefix = job_prefixes[idx]
         create_job(prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
 
 
 def submit_jobs():
     for job_index in range(njobs):
-        job_file = f"jobs/charm-job-{job_index}.yaml"
+        job_file = f"jobs_elastic/charm-job-{job_index}.yaml"
         print(f"Submitting {job_file}")
         # Here you would submit the job using your cluster's job submission command
         os.system(f"kubectl apply -f {job_file}")
         # For this example, we'll just print the command
         #print(f"kubectl apply -f {job_file}")
-        time.sleep(10)
+        time.sleep(90)
 
 
 if __name__ == "__main__":

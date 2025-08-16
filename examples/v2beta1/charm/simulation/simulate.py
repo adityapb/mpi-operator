@@ -493,9 +493,9 @@ def get_stats(event_stream, max_pes):
         else:
             times["response"] = None
 
-    #print("Job submit-start time differences:")
+    #print("Job runtimes:")
     #for job_name, times in job_submit_start_diff.items():
-    #    print(f"{job_name}: {times['diff']} seconds")
+    #    print(f"{job_name}: {times['end_time'] - times['start_time']} seconds")
 
     total_response = 0
     total_completion = 0

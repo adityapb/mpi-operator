@@ -213,5 +213,5 @@ volcano-scheduler-deploy: volcano-scheduler-crd
 
 .PHONY: charm
 charm: ${BIN_DIR}
-	cd $(PROJECT_DIR)/dep-libs/charm && git checkout kubernetes && ./build charm++ netlrts-linux-x86_64 --enable-shrinkexpand -j8 --force
+	cd $(PROJECT_DIR)/dep-libs/charm && git checkout shrinkexpand-mpi && ./build charm++ mpi-linux-x86_64 --enable-shrinkexpand -j8 --force --with-production
 	cd pkg/controller && $(PROJECT_DIR)/dep-libs/charm/bin/charmc -language c++ -seq -o ${PROJECT_DIR}/${BIN_DIR}/rescale_client rescale_client.C -lccs-client

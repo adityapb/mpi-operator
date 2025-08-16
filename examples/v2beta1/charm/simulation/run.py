@@ -19,10 +19,10 @@ class StencilJob(Job):
         self.niters = kwargs.pop('niters', 10000)
 
         self.data = {
-            512     : [(2, 0.000996), (4, 0.000675), (8, 0.000627)],
-            2048    : [(4, 0.00328), (8, 0.0021), (16, 0.0023)],
-            8192    : [(8, 0.0325), (16, 0.0275), (32, 0.016)],
-            16384   : [(16, 0.11), (32, 0.064), (59, 0.035)]
+            512     : [(2, 0.003), (4, 0.0017), (8, 0.000996)],
+            2048    : [(4, 0.012), (8, 0.0067), (16, 0.0037)],
+            8192    : [(8, 0.049), (16, 0.03), (32, 0.019)],
+            16384   : [(16, 0.13), (32, 0.075), (60, 0.046)]
         }
 
         self.models = {}
@@ -35,13 +35,13 @@ class StencilJob(Job):
                 y = [ndata[i][1], ndata[i+1][1]]
                 A = np.vstack([x, np.ones(len(x))]).T
                 m, c = np.linalg.lstsq(A, y, rcond=None)[0]
-                self.models[n][i] = (m, c)
+                self.models[n][i] = (m, c, (x, y))
 
         self.lbdata = {
             512     : [(2, 0.006), (4, 0.006), (8, 0.006)],
-            2048    : [(4, 0.0097), (8, 0.0097), (16, 0.046659)],
-            8192    : [(8, 0.61581), (16, 2.934641), (32, 25.083405)],
-            16384   : [(16, 14.601492), (32, 95.771426), (59, 59.793259)]
+            2048    : [(4, 0.01563), (8, 0.01563), (16, 0.01563)],
+            8192    : [(8, 0.181229), (16, 0.181229), (32, 0.181229)],
+            16384   : [(16, 0.728237), (32, 0.728237), (60, 0.728237)]
         }
 
         self.lbmodels = {}
@@ -56,24 +56,25 @@ class StencilJob(Job):
                 m, c = np.linalg.lstsq(A, y, rcond=None)[0]
                 self.lbmodels[n][i] = (m, c)
 
-        self.connect_time_pe = [2, 4, 8, 16, 32, 59]
-        self.connect_time_t = [1.248, 1.492, 3.902, 5.035, 6.949, 12.25]
+        self.connect_time_pe = [2, 4, 8, 16, 32, 60]
+        self.connect_time_t = [0.634, 0.851, 1.195, 2.55, 4.17, 9.02]
         # Fit linear regression model for connect time
         A = np.vstack([self.connect_time_pe, np.ones(len(self.connect_time_pe))]).T
         self.connect_time_model = np.linalg.lstsq(A, self.connect_time_t, rcond=None)[0]
 
     def get_connect_time(self):
-        return self.connect_time_model[0] * self.replicas + self.connect_time_model[1]
+        return self.connect_time_model[0] * (self.replicas + 1) + self.connect_time_model[1]
 
     def get_runtime(self):
         models = self.models[self.n]
         replicas = self.model_replicas[self.n]
 
         for i, r in enumerate(replicas):
-            if self.replicas <= r:
-                m, c = models[i]
+            if (self.replicas + 1) <= r:
+                m, c, (x, y) = models[i]
+                break
 
-        return m * self.replicas + c
+        return m * (self.replicas + 1) + c
 
     def get_completion_time(self):
         return self.get_runtime() * self.niters * (1 - self.completion_fraction)
@@ -83,10 +84,10 @@ class StencilJob(Job):
         replicas = self.lbmodel_replicas[self.n]
 
         for i, r in enumerate(replicas):
-            if self.replicas <= r:
+            if (self.replicas + 1) <= r:
                 m, c = models[i]
 
-        lbtime = m * self.replicas + c
+        lbtime = m * (self.replicas + 1) + c
 
         #print("LBTIME:", self.replicas, lbtime)
     
@@ -115,11 +116,11 @@ def generate_job_list(nexps):
         jobs_list = []
         for i in range(njobs):
             idx = choice(indices)
-            priority = (3 - idx) + randint(1, 2)
-            #priority = randint(1, 5)
-            min_replicas = min_pes[idx]
-            max_replicas = min(4 * min_replicas, 59)
-            problem_size = min_replicas * sizes_per_pe[idx]
+            #priority = (3 - idx) + randint(1, 2)
+            priority = randint(1, 5)
+            min_replicas = min_pes[idx] - 1
+            max_replicas = min(4 * (min_replicas + 1), 60) - 1
+            problem_size = (min_replicas + 1) * sizes_per_pe[idx]
             timesteps = timesteps_per_job[idx] #+ 100 * randint(0, 10)
             prefix = job_prefixes[idx]
             #create_job(prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
@@ -140,9 +141,9 @@ def run_simulation(jobs_list, mode, max_pes, job_submission_time, rescale_gap):
             job.min_replicas = job.max_replicas    
     
     if mode == "elastic":
-        simulator = Simulation(60, rescale_gap)
+        simulator = Simulation(max_pes, rescale_gap)
     else:
-        simulator = Simulation(60, 100000 * 60)
+        simulator = Simulation(max_pes, 100000 * 60)
     
     events = simulator.simulate([job_submission_time*i for i in range(len(jobs_list))], jobs_list)
     return get_stats(events, max_pes)
@@ -164,7 +165,7 @@ def vary_submission_time(modes, max_pes):
             print(f"Running simulation for mode {m} with submission time {t}")
             final_times, mean_responses, mean_completions, utilizations = [], [], [], []
             for i in range(nexperiments):
-                final_time, mean_response, mean_completion, utilization = run_simulation(deepcopy(jobs[i]), m, max_pes, t, 5*60)
+                final_time, mean_response, mean_completion, utilization = run_simulation(deepcopy(jobs[i]), m, max_pes, t, 3*60)
                 final_times.append(final_time)
                 mean_responses.append(mean_response)
                 mean_completions.append(mean_completion)
@@ -342,6 +343,72 @@ def vary_rescale_gap(modes, max_pes):
 
     print(df)
 
+def find_critical_experiment(modes, max_pes):
+    """
+    Finds the experiment where the elastic mode has the largest minimum performance
+    improvement over all other specified modes.
+    """
+    nexperiments = 1000
+    jobs = generate_job_list(nexperiments)
+
+    largest_min_improvement = -1
+    critical_experiment_index = -1
+    critical_experiment_results = {}
+    critical_total_times = {}
+    critical_job_list = None
+
+    print(f"Searching for critical experiment across {nexperiments} random job sets...")
+
+    for i in range(nexperiments):
+        current_jobs = jobs[i]
+        completion_times = {}
+        total_times = {}
+        
+        for m in modes:
+            final_time, _, mean_completion, _ = run_simulation(deepcopy(current_jobs), m, max_pes, 90, 3*60)
+            completion_times[m] = mean_completion
+            total_times[m] = final_time
+
+        elastic_completion = completion_times.get("elastic")
+        if elastic_completion is None:
+            continue
+
+        other_completions = [completion_times[m] for m in modes if m != "elastic"]
+        if not other_completions:
+            continue
+        
+        # Calculate improvement of elastic over other modes. Positive value means elastic is faster.
+        improvements = [c - elastic_completion for c in other_completions]
+        current_min_improvement = min(improvements)
+
+        if current_min_improvement > largest_min_improvement and total_times["elastic"] < 2000 and total_times["elastic"] < min([total_times[m] for m in modes if m != "elastic"]):
+            largest_min_improvement = current_min_improvement
+            critical_experiment_index = i
+            critical_experiment_results = completion_times
+            critical_total_times = total_times
+            critical_job_list = deepcopy(current_jobs)
+            print(f"New critical experiment found at index {i} with largest min improvement {largest_min_improvement:.2f}s")
+
+    print("\n--- Critical Experiment Analysis ---")
+    if critical_experiment_index != -1:
+        print(f"The experiment with the largest minimum performance improvement was found at index: {critical_experiment_index}")
+        print(f"Largest minimum improvement observed: {largest_min_improvement:.2f}s")
+        print("Mean completion times for this experiment:")
+        for mode, time in critical_experiment_results.items():
+            print(f"  - {mode}: {time:.2f}s")
+
+        print("\nTotal times for this experiment:")
+        for mode, time in critical_total_times.items():
+            print(f"  - {mode}: {time:.2f}s")
+        
+        print("\nJob details for this experiment:")
+        for job in critical_job_list:
+            print(f"  - {job.job_name}: priority={job.priority}, min={job.min_replicas}, max={job.max_replicas}, n={job.n}, niters={job.niters}")
+    else:
+        print("Could not find a critical experiment where elastic was consistently faster.")
+
+    return critical_job_list
+
 if __name__ == '__main__':
     sizes = [256, 512, 1024, 1024]
     sizes_per_pe = [256, 512, 1024, 1024]
@@ -352,30 +419,40 @@ if __name__ == '__main__':
     njobs = 16
     #njobs = 9
 
-    jobs = [2, 3, 2, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 1, 1, 1]
+    #jobs = [2, 3, 2, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 1, 1, 1]
+    #priorities = [2, 1, 3, 3, 4, 3, 3, 3, 5, 3, 3, 2, 4, 3, 3, 3]
+    jobs = [2, 1, 1, 0, 3, 3, 0, 3, 1, 1, 0, 3, 0, 1, 1, 1]
+    priorities = [2, 3, 4, 4, 2, 1, 4, 1, 4, 3, 4, 1, 5, 3, 3, 3]
     #jobs = [2, 3, 2, 1, 0, 1, 1, 1, 0]
 
     jobs_list = []
     for i, job_index in enumerate(jobs):
         idx = job_index
-        priority = (3 - job_index) + randint(1, 2)
-        min_replicas = min_pes[idx]
-        max_replicas = min(4 * min_replicas, 59)
-        problem_size = min_replicas * sizes_per_pe[idx]
+        #priority = (3 - job_index) + randint(1, 2)
+        #print(priority)
+        priority = priorities[i]
+        min_replicas = min_pes[idx] - 1
+        max_replicas = min(4 * (1 + min_replicas), 60) - 1
+        problem_size = (min_replicas + 1) * sizes_per_pe[idx]
         timesteps = timesteps_per_job[idx] #+ 100 * randint(0, 10)
         prefix = job_prefixes[idx]
         #create_job(prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
 
-        jobs_list.append(StencilJob("charm-%s-%i" % (prefix, counts[idx]), max_replicas, max_replicas, 
+        jobs_list.append(StencilJob("charm-%s-%i" % (prefix, counts[idx]), min_replicas, max_replicas, 
                                     priority, n=problem_size, niters=timesteps))
         counts[idx] += 1
-        
-    simulator = Simulation(60, 3 * 60)
-    events = simulator.simulate([90*i for i in range(njobs)], jobs_list)
-    jobs = ["charm-small-%i" % i for i in range(16)] + ["charm-medium-%i" % i for i in range(16)] + \
-        ["charm-large-%i" % i for i in range(16)] + ["charm-xlarge-%i" % i for i in range(16)]
+
+    print(run_simulation(deepcopy(jobs_list), "elastic", 60, 90, 3*60))
+    print(run_simulation(deepcopy(jobs_list), "moldable", 60, 90, 3*60))
+    print(run_simulation(deepcopy(jobs_list), "min_replicas", 60, 90, 3*60))
+    print(run_simulation(deepcopy(jobs_list), "max_replicas", 60, 90, 3*60))
+    #simulator = Simulation(60, 3 * 60000)
+    #events = simulator.simulate([90*i for i in range(njobs)], jobs_list)
+    #jobs = ["charm-small-%i" % i for i in range(16)] + ["charm-medium-%i" % i for i in range(16)] + \
+    #    ["charm-large-%i" % i for i in range(16)] + ["charm-xlarge-%i" % i for i in range(16)]
     #plot_utilization(events, jobs, 60)
     #print(events)
-    print(get_stats(events, 60))
+    #print(get_stats(events, 60))
     #vary_rescale_gap(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
-    vary_submission_time(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
+    #vary_submission_time(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
+    #find_critical_experiment(["elastic", "moldable", "min_replicas", "max_replicas"], 60)

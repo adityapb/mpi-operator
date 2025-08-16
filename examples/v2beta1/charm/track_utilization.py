@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-output_file = "/home/aditya/mpi-operator/examples/v2beta1/charm/pod_utilization_long2.log"
+output_file = "/home/aditya/mpi-operator/examples/v2beta1/charm/pod_utilization_moldable_new.log"
 
 open(output_file, "w").close()  # Clear the file before starting
 
