@@ -116,7 +116,6 @@ def generate_job_list(nexps):
         jobs_list = []
         for i in range(njobs):
             idx = choice(indices)
-            #priority = (3 - idx) + randint(1, 2)
             priority = randint(1, 5)
             min_replicas = min_pes[idx] - 1
             max_replicas = min(4 * (min_replicas + 1), 60) - 1
@@ -417,24 +416,18 @@ if __name__ == '__main__':
     job_prefixes = ["small", "medium", "large", "xlarge"]
     counts = [0, 0, 0, 0]
     njobs = 16
-    #njobs = 9
 
-    #jobs = [2, 3, 2, 1, 0, 1, 1, 1, 0, 1, 1, 2, 0, 1, 1, 1]
-    #priorities = [2, 1, 3, 3, 4, 3, 3, 3, 5, 3, 3, 2, 4, 3, 3, 3]
     jobs = [2, 1, 1, 0, 3, 3, 0, 3, 1, 1, 0, 3, 0, 1, 1, 1]
     priorities = [2, 3, 4, 4, 2, 1, 4, 1, 4, 3, 4, 1, 5, 3, 3, 3]
-    #jobs = [2, 3, 2, 1, 0, 1, 1, 1, 0]
 
     jobs_list = []
     for i, job_index in enumerate(jobs):
         idx = job_index
-        #priority = (3 - job_index) + randint(1, 2)
-        #print(priority)
         priority = priorities[i]
         min_replicas = min_pes[idx] - 1
         max_replicas = min(4 * (1 + min_replicas), 60) - 1
         problem_size = (min_replicas + 1) * sizes_per_pe[idx]
-        timesteps = timesteps_per_job[idx] #+ 100 * randint(0, 10)
+        timesteps = timesteps_per_job[idx]
         prefix = job_prefixes[idx]
         #create_job(prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
 
@@ -453,6 +446,6 @@ if __name__ == '__main__':
     #plot_utilization(events, jobs, 60)
     #print(events)
     #print(get_stats(events, 60))
-    #vary_rescale_gap(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
-    #vary_submission_time(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
+    vary_rescale_gap(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
+    vary_submission_time(["elastic", "moldable", "min_replicas", "max_replicas"], 60)
     #find_critical_experiment(["elastic", "moldable", "min_replicas", "max_replicas"], 60)

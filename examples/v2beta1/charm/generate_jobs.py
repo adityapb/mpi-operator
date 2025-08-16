@@ -14,7 +14,7 @@ job_prefixes = ["small", "medium", "large"]
 njobs = 16
 
 
-def create_job(prefix, job_index, priority, problem_size, min_replicas, max_replicas, timesteps):
+def create_job(mode, prefix, job_index, priority, problem_size, min_replicas, max_replicas, timesteps):
     with open("charm-template.yaml", "r") as file:
         template = file.read()
     
@@ -23,6 +23,14 @@ def create_job(prefix, job_index, priority, problem_size, min_replicas, max_repl
     num_chares = 2 ** (num_chares - 1).bit_length()
     chare_size = problem_size // num_chares
 
+    if mode == "min":
+        max_replicas = min(min_replicas - 1, 59)
+    elif mode == "max":
+        min_replicas = min(max_replicas - 1, 59)
+    elif mode == "elastic" or mode == "moldable":
+        min_replicas = min(min_replicas - 1, 59)
+        max_replicas = min(max_replicas - 1, 59)
+
     job_yaml = template.format(
         prefix=prefix,
         job_index=job_index,
@@ -30,15 +38,15 @@ def create_job(prefix, job_index, priority, problem_size, min_replicas, max_repl
         problem_size=problem_size,
         chare_size=chare_size,
         timesteps=timesteps,
-        min_replicas=min(max_replicas-1, 59),
-        max_replicas=min(max_replicas-1, 59),
+        min_replicas=min_replicas,
+        max_replicas=max_replicas,
     )
 
-    with open(f"jobs_elastic/charm-job-{job_index}.yaml", "w") as file:
+    with open(f"jobs_{mode}/charm-job-{job_index}.yaml", "w") as file:
         file.write(job_yaml)
 
 
-def generate_jobs():
+def generate_jobs(mode):
     sizes_per_pe = [256, 512, 1024, 1024]
     min_pes = [2, 4, 8, 16]
     timesteps_per_job = [40000, 40000, 40000, 10000]
@@ -57,12 +65,12 @@ def generate_jobs():
         problem_size = min_replicas * sizes_per_pe[idx]
         timesteps = timesteps_per_job[idx]
         prefix = job_prefixes[idx]
-        create_job(prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
+        create_job(mode, prefix, i, priority, problem_size, min_replicas, max_replicas, timesteps)
 
 
-def submit_jobs():
+def submit_jobs(mode):
     for job_index in range(njobs):
-        job_file = f"jobs_elastic/charm-job-{job_index}.yaml"
+        job_file = f"jobs_{mode}/charm-job-{job_index}.yaml"
         print(f"Submitting {job_file}")
         # Here you would submit the job using your cluster's job submission command
         os.system(f"kubectl apply -f {job_file}")
@@ -72,10 +80,11 @@ def submit_jobs():
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "generate_jobs":
-        generate_jobs()
+    mode = sys.argv[2]
+    if sys.argv[1] == "generate":
+        generate_jobs(mode)
     elif sys.argv[1] == "submit":
-        submit_jobs()
+        submit_jobs(mode)
     else:
         print("Invalid argument. Use 'generate_jobs' to generate job files or 'submit' to submit them.")
         sys.exit(1)

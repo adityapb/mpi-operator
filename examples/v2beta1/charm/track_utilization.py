@@ -1,7 +1,10 @@
 import subprocess
 import time
+import sys
 
-output_file = "/home/aditya/mpi-operator/examples/v2beta1/charm/pod_utilization_moldable_new.log"
+mode = sys.argv[1]
+
+output_file = f"pod_utilization_{mode}.log"
 
 open(output_file, "w").close()  # Clear the file before starting
 
